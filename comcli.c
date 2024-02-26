@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <mqueue.h>
 
+
 #define MAX_MSG_SIZE 256
 #define SERVER_QUEUE_NAME "/test1"
 
@@ -15,13 +16,22 @@ int main() {
     char command[MAX_MSG_SIZE];
     mqd_t mq;
     struct mq_attr attr;
+    char cs_pipe[30], sc_pipe[30]; // Adjusted size for safety
+    pid_t pid = getpid(); // Get the current process ID
 
-    const char *cs_pipe = "cs";
-    const char *sc_pipe = "sc";
+    // Create unique FIFO names using the process ID
+    snprintf(cs_pipe, sizeof(cs_pipe), "/tmp/cs_%d", pid);
+    snprintf(sc_pipe, sizeof(sc_pipe), "/tmp/sc_%d", pid);
 
-    // Create the named pipes if they don't exist
-    mkfifo(cs_pipe, 0666);
-    mkfifo(sc_pipe, 0666);
+    // Create the named pipes (FIFOs)
+    if (mkfifo(cs_pipe, 0666) < 0 ) {
+        perror("Client: mkfifo CS_PIPE failed");
+        exit(EXIT_FAILURE);
+    }
+    if (mkfifo(sc_pipe, 0666) < 0 ) {
+        perror("Client: mkfifo SC_PIPE failed");
+        exit(EXIT_FAILURE);
+    }
 
     mq = mq_open(SERVER_QUEUE_NAME, O_WRONLY);
     if (mq == (mqd_t)-1) {

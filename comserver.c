@@ -12,7 +12,7 @@
 #define SERVER_QUEUE_NAME "/test1"
 #define QUEUE_PERMISSIONS 0660
 
-void execute_client_request(const char *cs_pipe, const char *sc_pipe) {
+void execute_client_request(const char *cs_pipe, const char *sc_pipe,const char *originalMsg) {
     printf("Executea girdi");
     int cs_fd = open(cs_pipe, O_RDONLY);
     int sc_fd = open(sc_pipe, O_WRONLY);
@@ -26,7 +26,7 @@ void execute_client_request(const char *cs_pipe, const char *sc_pipe) {
         ssize_t bytes_read = read(cs_fd, command, MAX_MSG_SIZE);
         if (bytes_read > 0) {
             command[bytes_read] = '\0'; // Ensure null-termination
-            printf("Received command: %s\n", command); // Echo command for demonstration
+            printf("Received command: '%s' from %s\n", command, originalMsg); // Adjusted print statement
             if (strcmp(command, "quit") == 0) {
                 write(sc_fd, "Server quitting.", 16);
                 break;
@@ -73,7 +73,7 @@ int main() {
 
         pid_t pid = fork();
         if (pid == 0) { // Child process
-            execute_client_request(cs_pipe, sc_pipe);
+            execute_client_request(cs_pipe, sc_pipe, buffer);        
             exit(EXIT_SUCCESS);
         } else if (pid > 0) {
             // Optionally wait for the child process to prevent zombies, or handle SIGCHLD.
