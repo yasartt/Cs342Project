@@ -1,93 +1,66 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <mqueue.h>
 
 #define MAX_MSG_SIZE 256
+#define SERVER_QUEUE_NAME "/test1"
+#define CS_PIPE "/tmp/cs_pipe"
+#define SC_PIPE "/tmp/sc_pipe"
 
-void send_command_to_server(const char *mq_name, const char *cs_pipe, const char *sc_pipe, const char *command, int wsize) {
+int main() {
+    char command[MAX_MSG_SIZE];
     mqd_t mq;
-    char message[MAX_MSG_SIZE];
+    struct mq_attr attr;
 
-    // Open the message queue
-    mq = mq_open(mq_name, O_WRONLY);
+    // Create the client and server communication pipes
+    mkfifo(CS_PIPE, 0660);
+    mkfifo(SC_PIPE, 0660);
+
+    mq = mq_open(SERVER_QUEUE_NAME, O_WRONLY);
     if (mq == (mqd_t)-1) {
         perror("Client: mq_open");
         exit(EXIT_FAILURE);
     }
 
-    // Prepare the message to send to the server
-    snprintf(message, sizeof(message), "%s %s %s", cs_pipe, sc_pipe, command);
-
-    // Send message to the server
-    if (mq_send(mq, message, strlen(message) + 1, 0) == -1) {
+    char msg[MAX_MSG_SIZE];
+    sprintf(msg, "%s %s", CS_PIPE, SC_PIPE);
+    if (mq_send(mq, msg, strlen(msg) + 1, 0) == -1) {
         perror("Client: mq_send");
         exit(EXIT_FAILURE);
     }
 
-    // Here you might want to handle communication over the named pipes
-    // This part is left as an exercise for simplicity
-
-    mq_close(mq);
-}
-
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s <MQ_NAME> [-b COMFILE] [-s WSIZE]\n", argv[0]);
+    int sc_fd = open(SC_PIPE, O_RDONLY);
+    int cs_fd = open(CS_PIPE, O_WRONLY);
+    if (cs_fd == -1 || sc_fd == -1) {
+        perror("Failed to open FIFOs");
         exit(EXIT_FAILURE);
     }
 
-    char *mq_name = argv[1];
-    char *comfile = NULL;
-    int wsize = 512; // Default write size
-
-    for (int i = 2; i < argc; i++) {
-        if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
-            comfile = argv[++i];
-        } else if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
-            wsize = atoi(argv[++i]);
+    printf("Enter commands (type 'quit' to exit):\n");
+    while (fgets(command, MAX_MSG_SIZE, stdin) != NULL) {
+        command[strcspn(command, "\n")] = '\0'; // Remove newline
+        write(cs_fd, command, strlen(command) + 1);
+        if (strcmp(command, "quit") == 0) {
+            read(sc_fd, msg, MAX_MSG_SIZE);
+            printf("Server response: %s\n", msg);
+            break;
         }
+
+        // Wait for server response
+        read(sc_fd, msg, MAX_MSG_SIZE);
+        printf("Server response: %s\n", msg);
     }
 
-    // Here, set up the named pipes (FIFOs) and prepare to send commands to the server
-    // For demonstration, we'll use placeholder names for the FIFOs
-    char *cs_pipe = "client_to_server_fifo";
-    char *sc_pipe = "server_to_client_fifo";
+    close(cs_fd);
+    close(sc_fd);
+    unlink(CS_PIPE);
+    unlink(SC_PIPE);
 
-    if (comfile) {
-        // Batch mode: Read commands from the COMFILE and send them to the server
-        FILE *file = fopen(comfile, "r");
-        if (!file) {
-            perror("Failed to open command file");
-            exit(EXIT_FAILURE);
-        }
-
-        char command[MAX_MSG_SIZE];
-        while (fgets(command, sizeof(command), file) != NULL) {
-            send_command_to_server(mq_name, cs_pipe, sc_pipe, command, wsize);
-            // Here, handle the server's response if needed
-        }
-
-        fclose(file);
-    } else {
-        // Interactive mode: Read commands from the user and send them to the server
-        char command[MAX_MSG_SIZE];
-        printf("Enter commands (type 'exit' to quit):\n");
-        while (1) {
-            fgets(command, sizeof(command), stdin);
-            if (strncmp(command, "exit", 4) == 0) {
-                break;
-            }
-            send_command_to_server(mq_name, cs_pipe, sc_pipe, command, wsize);
-            // Here, handle the server's response if needed
-        }
-    }
-
-    // Cleanup and close any open resources
-
+    mq_close(mq);
+    printf("Client quitting.\n");
     return EXIT_SUCCESS;
 }

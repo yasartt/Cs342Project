@@ -1,80 +1,88 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <mqueue.h>
 
 #define MAX_MSG_SIZE 256
-#define MSG_BUFFER_SIZE (MAX_MSG_SIZE + 10)
+#define SERVER_QUEUE_NAME "/test1"
+#define QUEUE_PERMISSIONS 0660
 
-void handle_client(const char *cs_pipe, const char *sc_pipe) {
-    // This function is supposed to open the FIFOs and handle the client-server communication
-    printf("Handling client with CS_PIPE: %s and SC_PIPE: %s\n", cs_pipe, sc_pipe);
-    // Here you would add the logic to open the FIFOs, execute commands, and send back responses
-    // This part is left as an exercise
-}
-
-int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <MQ_NAME>\n", argv[0]);
+void execute_client_request(const char *cs_pipe, const char *sc_pipe) {
+    int cs_fd = open(cs_pipe, O_RDONLY);
+    int sc_fd = open(sc_pipe, O_WRONLY);
+    if (cs_fd == -1 || sc_fd == -1) {
+        perror("Failed to open FIFOs");
         exit(EXIT_FAILURE);
     }
 
-    char *mq_name = argv[1];
-    mqd_t mq;
-    struct mq_attr attr;
-    char buffer[MSG_BUFFER_SIZE];
+    char command[MAX_MSG_SIZE];
+    while (1) {
+        ssize_t bytes_read = read(cs_fd, command, MAX_MSG_SIZE);
+        if (bytes_read > 0) {
+            command[bytes_read] = '\0'; // Ensure null-termination
+            printf("Received command: %s\n", command); // Echo command for demonstration
+            if (strcmp(command, "quit") == 0) {
+                write(sc_fd, "Server quitting.", 16);
+                break;
+            }
+            // Respond back with command execution status (simplified)
+            write(sc_fd, "Command executed", 17);
+        }
+    }
 
-    // Setting up message queue attributes
+    close(cs_fd);
+    close(sc_fd);
+}
+
+int main() {
+    struct mq_attr attr;
+    char buffer[MAX_MSG_SIZE + 1]; // +1 for null terminator
+
     attr.mq_flags = 0;
     attr.mq_maxmsg = 10;
     attr.mq_msgsize = MAX_MSG_SIZE;
     attr.mq_curmsgs = 0;
 
-    // Creating the message queue
-    mq = mq_open(mq_name, O_CREAT | O_RDONLY, 0644, &attr);
-    if (mq == (mqd_t)-1) {
-        perror("Message queue creation failed");
+mqd_t mq = mq_open("/test1", O_CREAT | O_RDONLY, QUEUE_PERMISSIONS, &attr);    if (mq == (mqd_t)-1) {
+        perror("Server: mq_open");
         exit(EXIT_FAILURE);
     }
 
-    printf("Server is running and waiting for connections...\n");
+    printf("Server is running.\n");
 
     while (1) {
-        ssize_t bytes_read = mq_receive(mq, buffer, MSG_BUFFER_SIZE, NULL);
+        ssize_t bytes_read = mq_receive(mq, buffer, MAX_MSG_SIZE, NULL);
         if (bytes_read <= 0) {
-            perror("mq_receive");
             continue;
         }
 
-        buffer[bytes_read] = '\0'; // Null-terminate the string
+        buffer[bytes_read] = '\0';
+        printf("Received message: %s\n", buffer);
 
-        // Simulating the reception of FIFO names via message queue for demonstration purposes
-        printf("Received connection request: %s\n", buffer);
+        char cs_pipe[MAX_MSG_SIZE], sc_pipe[MAX_MSG_SIZE];
+        sscanf(buffer, "%s %s", cs_pipe, sc_pipe);
 
-        // Forking a new process to handle this client
         pid_t pid = fork();
-        if (pid == -1) {
-            perror("fork");
-            exit(EXIT_FAILURE);
-        } else if (pid == 0) { // Child process
-            // Assuming the buffer contains the names of the FIFOs separated by a space
-            char cs_pipe[100], sc_pipe[100];
-            sscanf(buffer, "%s %s", cs_pipe, sc_pipe); // Extract FIFO names
-            handle_client(cs_pipe, sc_pipe);
+        if (pid == 0) { // Child process
+            execute_client_request(cs_pipe, sc_pipe);
             exit(EXIT_SUCCESS);
+        } else if (pid > 0) {
+            // Optionally wait for the child process to prevent zombies, or handle SIGCHLD.
+            int status;
+            waitpid(pid, &status, 0);
         } else {
-            // Parent process: wait for the child to finish
-            waitpid(pid, NULL, 0);
+            perror("fork failed");
+            exit(EXIT_FAILURE);
         }
     }
 
-    // Cleanup
     mq_close(mq);
-    mq_unlink(mq_name);
-
+    mq_unlink(SERVER_QUEUE_NAME);
+    printf("Server quitting.\n");
     return EXIT_SUCCESS;
 }
