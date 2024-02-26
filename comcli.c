@@ -8,17 +8,20 @@
 
 #define MAX_MSG_SIZE 256
 #define SERVER_QUEUE_NAME "/test1"
-#define CS_PIPE "/tmp/cs_pipe"
-#define SC_PIPE "/tmp/sc_pipe"
+
 
 int main() {
+
     char command[MAX_MSG_SIZE];
     mqd_t mq;
     struct mq_attr attr;
 
-    // Create the client and server communication pipes
-    mkfifo(CS_PIPE, 0660);
-    mkfifo(SC_PIPE, 0660);
+    const char *cs_pipe = "cs";
+    const char *sc_pipe = "sc";
+
+    // Create the named pipes if they don't exist
+    mkfifo(cs_pipe, 0666);
+    mkfifo(sc_pipe, 0666);
 
     mq = mq_open(SERVER_QUEUE_NAME, O_WRONLY);
     if (mq == (mqd_t)-1) {
@@ -27,14 +30,26 @@ int main() {
     }
 
     char msg[MAX_MSG_SIZE];
-    sprintf(msg, "%s %s", CS_PIPE, SC_PIPE);
+    sprintf(msg, "%s %s", cs_pipe, sc_pipe);
     if (mq_send(mq, msg, strlen(msg) + 1, 0) == -1) {
         perror("Client: mq_send");
         exit(EXIT_FAILURE);
     }
 
-    int sc_fd = open(SC_PIPE, O_RDONLY);
-    int cs_fd = open(CS_PIPE, O_WRONLY);
+    int sc_fd; 
+    int cs_fd;
+
+    if((cs_fd = open(cs_pipe, O_WRONLY))<0){
+        perror("open fifo");
+        exit(1);
+    }
+    
+    if((sc_fd = open(sc_pipe, O_RDONLY))<0){
+        perror("open fifo");
+        exit(1);
+    }
+
+    printf("xxx\n");
     if (cs_fd == -1 || sc_fd == -1) {
         perror("Failed to open FIFOs");
         exit(EXIT_FAILURE);
@@ -42,6 +57,7 @@ int main() {
 
     printf("Enter commands (type 'quit' to exit):\n");
     while (fgets(command, MAX_MSG_SIZE, stdin) != NULL) {
+        printf("\nHere: ");
         command[strcspn(command, "\n")] = '\0'; // Remove newline
         write(cs_fd, command, strlen(command) + 1);
         if (strcmp(command, "quit") == 0) {
@@ -57,8 +73,8 @@ int main() {
 
     close(cs_fd);
     close(sc_fd);
-    unlink(CS_PIPE);
-    unlink(SC_PIPE);
+    unlink(cs_pipe);
+    unlink(sc_pipe);
 
     mq_close(mq);
     printf("Client quitting.\n");
