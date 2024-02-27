@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <mqueue.h>
@@ -91,35 +91,21 @@ int main(int argc, char *argv[]) {
         perror("Failed to open FIFOs");
         exit(EXIT_FAILURE);
     }
-    FILE *inputStream = stdin; // Default to stdin for interactive mode
-    if (comFile != NULL) {
-        inputStream = fopen(comFile, "r");
-        if (inputStream == NULL) {
-            perror("Client: Opening COMFILE failed");
-            exit(EXIT_FAILURE);
-        }
-    }
 
     printf("Enter commands (type 'quit' to exit):\n");
-    while (fgets(command, MAX_MSG_SIZE, inputStream) != NULL) {
+    while (fgets(command, MAX_MSG_SIZE, stdin) != NULL) {
+        printf("\nHere: ");
         command[strcspn(command, "\n")] = '\0'; // Remove newline
-        if (write(cs_fd, command, strlen(command) + 1) < 0) {
-            perror("Client: write to cs_pipe failed");
+        write(cs_fd, command, strlen(command) + 1);
+        if (strcmp(command, "quit") == 0) {
+            read(sc_fd, msg, MAX_MSG_SIZE);
+            printf("Server response: %s\n", msg);
             break;
         }
 
-        if (strcmp(command, "quit") == 0) {
-            break; // Exit loop after sending "quit"
-        }
-
-        // Read and display server response
-        if (read(sc_fd, msg, wsize) > 0) { // Note: Server needs to respect 'wsize' limit
-            printf("Server response: %s\n", msg);
-        }
-    }
-
-    if (comFile != NULL) {
-        fclose(inputStream);
+        // Wait for server response
+        read(sc_fd, msg, MAX_MSG_SIZE);
+        printf("Server response: %s\n", msg);
     }
 
     close(cs_fd);
@@ -131,3 +117,4 @@ int main(int argc, char *argv[]) {
     printf("Client quitting.\n");
     return EXIT_SUCCESS;
 }
+
