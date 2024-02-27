@@ -5,9 +5,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <mqueue.h>
-
-
-
 #define MAX_MSG_SIZE 256
 #define SERVER_QUEUE_NAME "/test1"
 
@@ -30,9 +27,12 @@ int main(int argc, char *argv[]) {
                 break;
             case 's':
                 wsize = atoi(optarg); // Write size limit
-                if (wsize <= 0 || wsize > MAX_MSG_SIZE) {
+                printf("Seending Lenghtth (max size %d)\n", atoi(optarg));
+
+                if (wsize <= 0) {
                     fprintf(stderr, "Invalid WSIZE. Using default.\n");
-                    wsize = MAX_MSG_SIZE;
+                    wsize = 512;
+                    exit(EXIT_FAILURE);
                 }
                 break;
             default: /* '?' */
@@ -101,9 +101,9 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Enter commands (type 'quit' to exit):\n");
-    while (fgets(command, MAX_MSG_SIZE, inputStream) != NULL) {
+    while (fgets(command, wsize, inputStream) != NULL) {
         command[strcspn(command, "\n")] = '\0'; // Remove newline
-        if (write(cs_fd, command, strlen(command) + 1) < 0) {
+        if (write(cs_fd, command, wsize) < 0) {
             perror("Client: write to cs_pipe failed");
             break;
         }

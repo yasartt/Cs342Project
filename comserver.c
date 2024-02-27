@@ -12,8 +12,8 @@
 #define SERVER_QUEUE_NAME "/test1"
 #define QUEUE_PERMISSIONS 0660
 
-void execute_client_request(const char *cs_pipe, const char *sc_pipe,const char *originalMsg) {
-    printf("Executea girdi");
+void execute_client_request(const char *cs_pipe, const char *sc_pipe, const char *originalMsg) {
+    printf("Executea girdi\n");
     int cs_fd = open(cs_pipe, O_RDONLY);
     int sc_fd = open(sc_pipe, O_WRONLY);
     if (cs_fd == -1 || sc_fd == -1) {
@@ -26,13 +26,29 @@ void execute_client_request(const char *cs_pipe, const char *sc_pipe,const char 
         ssize_t bytes_read = read(cs_fd, command, MAX_MSG_SIZE);
         if (bytes_read > 0) {
             command[bytes_read] = '\0'; // Ensure null-termination
-            printf("Received command: '%s' from %s\n", command, originalMsg); // Adjusted print statement
+            printf("Received command (max size %d): '%s' from %s\n", MAX_MSG_SIZE, command, originalMsg);            
             if (strcmp(command, "quit") == 0) {
                 write(sc_fd, "Server quitting.", 16);
                 break;
             }
-            // Respond back with command execution status (simplified)
-            write(sc_fd, "Command executed", 17);
+            
+            // Execute command and write result to sc_pipe
+            FILE *fp = popen(command, "r");
+            if (fp == NULL) {
+                perror("Failed to execute command");
+                exit(EXIT_FAILURE);
+            }
+
+            char result[MAX_MSG_SIZE];
+            size_t bytes_written = fread(result, 1, MAX_MSG_SIZE, fp);
+            if (bytes_written == 0) {
+                strcpy(result, "Command execution failed.");
+            }
+
+            // Write result back to the sc_pipe
+            write(sc_fd, result, strlen(result));
+            
+            pclose(fp);
         }
     }
 
