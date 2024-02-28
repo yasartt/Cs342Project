@@ -13,7 +13,6 @@
 #define QUEUE_PERMISSIONS 0660
 
 void execute_client_request(const char *cs_pipe, const char *sc_pipe, const char *originalMsg) {
-    printf("Executea girdi\n");
     int cs_fd = open(cs_pipe, O_RDONLY);
     int sc_fd = open(sc_pipe, O_WRONLY);
     if (cs_fd == -1 || sc_fd == -1) {
@@ -57,7 +56,6 @@ void execute_client_request(const char *cs_pipe, const char *sc_pipe, const char
 }
 
 int main() {
-    printf("First");
 
     struct mq_attr attr;
     char buffer[MAX_MSG_SIZE + 1]; // +1 for null terminator
@@ -75,12 +73,10 @@ int main() {
     printf("Server is running.\n");
 
     while (1) {
-        printf("Second");
         ssize_t bytes_read = mq_receive(mq, buffer, MAX_MSG_SIZE, NULL);
         if (bytes_read <= 0) {
             continue;
         }
-        printf("Third");
         buffer[bytes_read] = '\0';
         printf("Received message: %s\n", buffer);
 

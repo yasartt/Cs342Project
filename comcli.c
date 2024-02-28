@@ -27,8 +27,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 's':
                 wsize = atoi(optarg); // Write size limit
-                printf("Seending Lenghtth (max size %d)\n", atoi(optarg));
-
                 if (wsize <= 0) {
                     fprintf(stderr, "Invalid WSIZE. Using default.\n");
                     wsize = 512;
@@ -86,7 +84,6 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    printf("xxx\n");
     if (cs_fd == -1 || sc_fd == -1) {
         perror("Failed to open FIFOs");
         exit(EXIT_FAILURE);
