@@ -86,15 +86,6 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    // Inside main function, after creating FIFOs
-    char output_file[30]; // Adjusted size for safety
-    snprintf(output_file, sizeof(output_file), "output%d.txt", getpid());
-    FILE *output_stream = fopen(output_file, "w");
-    if (output_stream == NULL) {
-        perror("Client: Opening output file failed");
-        exit(EXIT_FAILURE);
-    }
-
     printf("xxx\n");
     if (cs_fd == -1 || sc_fd == -1) {
         perror("Failed to open FIFOs");
