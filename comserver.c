@@ -13,7 +13,8 @@
 #define QUEUE_PERMISSIONS 0660
 
 void execute_client_request(const char *cs_pipe, const char *sc_pipe, const char *originalMsg) {
-    printf("Executea girdi\n");
+    printf("Executing child process %d\n", getpid());
+
     int cs_fd = open(cs_pipe, O_RDONLY);
     int sc_fd = open(sc_pipe, O_WRONLY);
     if (cs_fd == -1 || sc_fd == -1) {
@@ -21,33 +22,42 @@ void execute_client_request(const char *cs_pipe, const char *sc_pipe, const char
         exit(EXIT_FAILURE);
     }
 
+    // Construct the output file name based on the process ID (pid)
+    char output_file[MAX_MSG_SIZE];
+    snprintf(output_file, sizeof(output_file), "output%d.txt", getpid());
+
     char command[MAX_MSG_SIZE];
     while (1) {
         ssize_t bytes_read = read(cs_fd, command, MAX_MSG_SIZE);
         if (bytes_read > 0) {
             command[bytes_read] = '\0'; // Ensure null-termination
-            printf("Received command (max size %d): '%s' from %s\n", MAX_MSG_SIZE, command, originalMsg);            
+            printf("Received command (max size %d): '%s'\n", MAX_MSG_SIZE, command);
             if (strcmp(command, "quit") == 0) {
-                write(sc_fd, "Server quitting.", 16);
                 break;
             }
-            
-            // Execute command and write result to sc_pipe
+
+            // Execute command and write result to the client's output file
             FILE *fp = popen(command, "r");
             if (fp == NULL) {
                 perror("Failed to execute command");
                 exit(EXIT_FAILURE);
             }
 
-            char result[MAX_MSG_SIZE];
-            size_t bytes_written = fread(result, 1, MAX_MSG_SIZE, fp);
-            if (bytes_written == 0) {
-                strcpy(result, "Command execution failed.");
+            char buffer[MAX_MSG_SIZE];
+            size_t bytes_read = fread(buffer, 1, MAX_MSG_SIZE, fp);
+            if (bytes_read == 0) {
+                strcpy(buffer, "Command execution failed.");
             }
 
-            // Write result back to the sc_pipe
-            write(sc_fd, result, strlen(result));
-            
+            // Open the output file
+            FILE *output_stream = fopen(output_file, "a"); // "a" to append to file
+            if (output_stream == NULL) {
+                perror("Failed to open output file");
+                exit(EXIT_FAILURE);
+            }
+            fwrite(buffer, 1, bytes_read, output_stream);
+            fclose(output_stream);
+
             pclose(fp);
         }
     }
