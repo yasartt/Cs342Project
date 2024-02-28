@@ -110,7 +110,10 @@ int main(int argc, char *argv[]) {
         }
 
         // Read and display server response
-        if (read(sc_fd, msg, wsize) > 0) { // Note: Server needs to respect 'wsize' limit
+        if (read(sc_fd, msg, wsize) > 0) { 
+            if (wsize == 0){
+                break;
+            }  
             printf("Server response: %s\n", msg);
         }
     }

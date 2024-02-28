@@ -25,12 +25,15 @@ void execute_client_request(const char *cs_pipe, const char *sc_pipe, const char
         ssize_t bytes_read = read(cs_fd, command, MAX_MSG_SIZE);
         if (bytes_read > 0) {
             command[bytes_read] = '\0'; // Ensure null-termination
-            printf("Received command (max size %d): '%s' from %s\n", MAX_MSG_SIZE, command, originalMsg);            
             if (strcmp(command, "quit") == 0) {
-                write(sc_fd, "Server quitting.", 16);
+                printf("mesg received: len=%zu, type=%d, data=`%s` from %s\n", strlen(command) + 10, 2, command, originalMsg);            
+
+                write(sc_fd, "Server quitting.", 0);
                 break;
             }
-            
+            else{
+                printf("mesg received: len=%zu, type=%d, data=`%s` from %s\n", strlen(command) + 10, 1, command, originalMsg);            
+            }            
             // Execute command and write result to sc_pipe
             FILE *fp = popen(command, "r");
             if (fp == NULL) {
@@ -44,6 +47,10 @@ void execute_client_request(const char *cs_pipe, const char *sc_pipe, const char
                 strcpy(result, "Command execution failed.");
             }
 
+            //gettimeofday(&end_time, NULL); // Record end time
+            //long seconds = (end_time.tv_sec - start_time.tv_sec);
+            //long micros = ((seconds * 1000000) + end_time.tv_usec) - (start_time.tv_usec);
+            //printf("Execution time: %ld microseconds\n", micros);
             // Write result back to the sc_pipe
             write(sc_fd, result, strlen(result));
             
